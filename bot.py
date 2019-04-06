@@ -21,15 +21,6 @@ async def on_ready():
         bot.load_extension(cog)
 
 
-# @bot.event
-# async def on_message(msg):
-#     prefix = "!"
-#     if msg.content[0] == (prefix):
-#         msg.content = msg.content[1:]
-#     if (msg.content == "ping"):
-#         await msg.channel.send("pong")
-
-
 @bot.command()
 async def ping(msg):
     print("HEII")

@@ -3,23 +3,45 @@ import asyncio
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import re
+import sys
+import signal
+import json
+import uuid
 
 
 class Job():
-    def __init__(self, user, ctx):
+    def __init__(self, user, ctx, desc="", date=False):
         self.user = user
-        self.desc = "placeholder"
-        self.date = False
+        self.desc = desc
+        self.date = date
         self.ctx = ctx
 
 
 class Remind(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.frmt = "%d/%m/%Y %H:%M:%S"
+        self.frmt = "%d-%m-%Y %H:%M:%S"
+        self.dfrmt = "%Y-%m-%d %H:%M:%S"
         self.scheduler = AsyncIOScheduler(timezone="Europe/Oslo")
         self.scheduler.start()
+        signal.signal(signal.SIGINT, self.close_handler)
         # go over jobs in config and add jobs
+        with open("jobs.json") as f:
+            jobs = json.loads(f.read())
+        for userid, userjobs in jobs.items():
+            for jobid, job in userjobs.items():
+                self.scheduler.add_job(func=self.remind,
+                                       trigger='date',
+                                       next_run_time=datetime.strptime(
+                                           job["date"],
+                                           self.dfrmt),
+                                       args=[
+                                           userid,
+                                           job["desc"],
+                                           self.bot.get_channel(
+                                               job["channel"]),
+                                           jobid])
+        f.close()
 
         self.waiting = {
             # stage 0: nothing
@@ -35,6 +57,10 @@ class Remind(commands.Cog):
         }
         # current job in the making
         self.cc_job = None
+
+    def close_handler(self, sig, frame):
+        print("You closed program nice!")
+        sys.exit(0)
 
     def set_waiting_stage(self, s):
         self.waiting['stage'] = s
@@ -60,7 +86,10 @@ class Remind(commands.Cog):
         await ctx.channel.send(
             "Enter a desc for your remind_me!")
 
-        desc = await self.bot.wait_for('message')
+        def check(m): return (m.author.id ==
+                              ctx.author.id and m.channel == ctx.channel)
+
+        desc = await self.bot.wait_for('message', check=check)
         print(desc.content)
 
         self.cc_job.desc = desc.content
@@ -82,10 +111,38 @@ class Remind(commands.Cog):
         self.cc_job = None
 
     def add_job(self, job):
+        # todo save job to file
+        jobid = str(uuid.uuid4())
         self.scheduler.add_job(func=self.remind, trigger='date', next_run_time=job.date, args=[
-                               job.user, job.desc, job.ctx])
+                               job.user, job.desc, job.ctx, jobid])
+        with open("jobs.json") as f:
+            jobs = json.loads(f.read())
+        f.close()
+        j = {
+            "desc": job.desc,
+            "date": str(job.date),
+            "channel": job.ctx.id
+        }
+        if not str(job.user) in jobs:
+            jobs[str(job.user)] = {}
+        jobs[str(job.user)][jobid] = j
+        self.save_json(jobs)
+        print("Added {} to {.user}"
+              .format(jobid, job))
 
-    async def remind(self, user, desc, ctx):
+    def save_json(self, jobs):
+        with open('jobs.json', 'w') as f:
+            json.dump(jobs, f, indent=4, sort_keys=True)
+        f.close()
+
+    async def remind(self, user, desc, ctx, jobid):
+        with open("jobs.json") as f:
+            jobs = json.loads(f.read())
+        jobs[str(user)].pop(jobid)
+        self.save_json(jobs)
+        print("Removed {} from {}"
+              .format(jobid, user))
+
         return await ctx.send("<@{}> {}".format(user, desc))
 
     async def prompt_time(self, ctx):
@@ -116,13 +173,14 @@ class Remind(commands.Cog):
     def validate_pattern(self, message):
         t = message.content
 
-        regex_date_time = r"^\d+\/\d+\/\d+ \d+\:\d+\:\d+$"
+        regex_date_time = r"^\d+\-\d+\-\d+ \d+\:\d+\:\d+$"
         #regex_time = r"^\d+\:\d+\:\d+$"
         if re.match(regex_date_time, t):
             return self.validate_time(t, self.frmt)
         # elif re.match(regex_time, t):
         #     return validate_time(t, frmt.split(" ")[1])
         else:
+            print("Wrong format from regex")
             return False
 
 
