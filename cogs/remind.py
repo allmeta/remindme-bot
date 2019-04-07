@@ -1,4 +1,5 @@
 from discord.ext import commands
+from discord import Embed, Colour
 import asyncio
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -67,6 +68,30 @@ class Remind(commands.Cog):
 
     def set_waiting_user(self, s):
         self.waiting['user'] = s
+
+    @commands.command(
+        name="myreminders",
+        description="List of all reminders",
+        aliases=['mr']
+    )
+    async def myreminders(self, ctx):
+        with open("jobs.json") as f:
+            jobs = json.loads(f.read())
+        f.close()
+        if (not str(ctx.author.id) in jobs
+                or not bool(jobs[str(ctx.author.id)])):
+            return await ctx.send("You have no reminders!")
+        reminders_list = jobs[str(ctx.author.id)]
+        embed = Embed(
+            title="Your current reminders",
+            colour=Colour.blue()
+        )
+        for key, job in reminders_list.items():  # dict btw oof
+            embed.add_field(
+                name="{}".format(job["desc"]),
+                value="{}".format(job["date"])
+            )
+        await ctx.send(embed=embed)
 
     @commands.command(
         name="remindme",
