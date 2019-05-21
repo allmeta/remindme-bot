@@ -11,6 +11,10 @@ import uuid
 
 
 class Job():
+    """
+    Just a struct to store temp data... only used by remindme
+    """
+
     def __init__(self, user, ctx, desc="", date=False):
         self.user = user
         self.desc = desc
@@ -25,7 +29,7 @@ class Remind(commands.Cog):
         self.dfrmt = "%Y-%m-%d %H:%M:%S"
         self.scheduler = AsyncIOScheduler(timezone="Europe/Oslo")
         self.scheduler.start()
-        signal.signal(signal.SIGINT, self.close_handler)
+        # signal.signal(signal.SIGINT, self.close_handler)
         # go over jobs in config and add jobs
         with open("jobs.json") as f:
             jobs = json.loads(f.read())
@@ -70,11 +74,11 @@ class Remind(commands.Cog):
         self.waiting['user'] = s
 
     @commands.command(
-        name="remove reminder",
+        name="remove",
         description="Remove a reminder",
         aliases=["rr"]
     )
-    async def removereminder(self, ctx):
+    async def remove(self, ctx):
         with open("jobs.json") as f:
             jobs = json.loads(f.read())
         f.close()
@@ -119,20 +123,26 @@ class Remind(commands.Cog):
             return await ctx.send(':x: No match found.')
 
     @commands.command(
-        name="my reminders",
-        description="List of all reminders",
-        aliases=['mr']
+        name="reminders",
+        description="List all reminders of yourself or a mentioned user",
+        aliases=['rm']
     )
-    async def myreminders(self, ctx):
+    async def reminders(self, ctx):
         with open("jobs.json") as f:
             jobs = json.loads(f.read())
         f.close()
-        if (not str(ctx.author.id) in jobs
-                or not bool(jobs[str(ctx.author.id)])):
+        usr = ctx.message.mentions[0].id if bool(
+            ctx.message.mentions) else ctx.author.id
+        await self.send_reminders(ctx=ctx, usr=usr, jobs=jobs)
+
+    async def send_reminders(self, ctx, usr, jobs):
+        if (not str(usr) in jobs
+                or not bool(jobs[str(usr)])):
             return await ctx.send("You have no reminders!")
-        reminders_list = jobs[str(ctx.author.id)]
+        reminders_list = jobs[str(usr)]
         embed = Embed(
-            title="Your current reminders",
+            title="{}'s current reminders".format(
+                self.bot.get_user(usr).display_name),
             colour=Colour.blue()
         )
         for key, job in reminders_list.items():  # dict btw oof
@@ -143,9 +153,9 @@ class Remind(commands.Cog):
         return await ctx.send(embed=embed)
 
     @commands.command(
-        name="remind me",
+        name="remindme",
         description="on a certain date",
-        aliases=['rd']
+        aliases=['r']
     )
     async def remindme(self, ctx):
         # add user to query dict
