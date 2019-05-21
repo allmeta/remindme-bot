@@ -40,7 +40,7 @@ class Remind(commands.Cog):
                                        next_run_time=datetime.strptime(
                                            job["date"],
                                            self.dfrmt),
-                                       id=jobid
+                                       id=jobid,
                                        args=[
                                            userid,
                                            job["desc"],
