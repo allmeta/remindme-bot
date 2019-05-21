@@ -97,7 +97,7 @@ class Remind(commands.Cog):
             )
             jobs_remove_array.append(key)
         embed.set_footer(
-            text="type any number to select, type `cancel` to exit")
+            text="type any number to select, type cancel to exit")
 
         await ctx.send(embed=embed)
 
@@ -231,7 +231,7 @@ class Remind(commands.Cog):
                     m.channel == ctx.channel)
 
         await ctx.channel.send(
-            "Enter a time in the format `{}`".format(self.frmt))
+            "Enter a time in the format `{}`, `cancel` to exit.".format(self.frmt))
         m = await self.bot.wait_for('message', check=check)
         if m.content == "cancel":
             return "cancel"
