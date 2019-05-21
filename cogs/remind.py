@@ -70,7 +70,56 @@ class Remind(commands.Cog):
         self.waiting['user'] = s
 
     @commands.command(
-        name="myreminders",
+        name="remove reminder",
+        description="Remove a reminder",
+        aliases=["rr"]
+    )
+    async def removereminder(self, ctx):
+        with open("jobs.json") as f:
+            jobs = json.loads(f.read())
+        f.close()
+        jobs_remove_array = []
+
+        if (not str(ctx.author.id) in jobs
+                or not bool(jobs[str(ctx.author.id)])):
+            return await ctx.send("You have no reminders!")
+
+        reminders_list = jobs[str(ctx.author.id)]
+
+        embed = Embed(
+            title="Remove reminder:",
+            colour=Colour.blue()
+        )
+        for key, job in reminders_list.items():
+            embed.add_field(
+                name=("`"+str(len(jobs_remove_array))+"`"),
+                value=(job["desc"])
+            )
+            jobs_remove_array.append(key)
+        embed.set_footer(
+            text="type any number to select, type `cancel` to exit")
+
+        await ctx.send(embed=embed)
+
+        def check(m): return (m.author.id ==
+                              ctx.author.id and m.channel == ctx.channel)
+        resp = await self.bot.wait_for('message', check=check)
+        res = resp.content
+        if res == "cancel":
+            return await ctx.send(':white_check_mark:')
+        elif re.match(r'[0-9]', res) and int(res) < len(jobs_remove_array):
+            # remove job here
+            res = int(res)
+            k = jobs_remove_array[res]
+            jobs[str(ctx.author.id)].pop(k)
+            self.save_json(jobs)
+            self.scheduler.remove_job(k)
+            return await ctx.send(':white_check_mark: Entry deleted.')
+        else:
+            return await ctx.send(':x: No match found.')
+
+    @commands.command(
+        name="my reminders",
         description="List of all reminders",
         aliases=['mr']
     )
@@ -91,11 +140,11 @@ class Remind(commands.Cog):
                 name="{}".format(job["desc"]),
                 value="{}".format(job["date"])
             )
-        await ctx.send(embed=embed)
+        return await ctx.send(embed=embed)
 
     @commands.command(
-        name="remindme",
-        description="Remindme date command",
+        name="remind me",
+        description="on a certain date",
         aliases=['rd']
     )
     async def remindme(self, ctx):
@@ -115,15 +164,20 @@ class Remind(commands.Cog):
                               ctx.author.id and m.channel == ctx.channel)
 
         desc = await self.bot.wait_for('message', check=check)
-        print(desc.content)
 
         self.cc_job.desc = desc.content
 
         time = await self.prompt_time(ctx)
-        while not time:
+        while not bool(time):
             await ctx.channel.send(
                 "Date is in wrong format. Try again!")
             time = await self.prompt_time(ctx)
+        # cancel
+        if time == "cancel":
+            self.set_waiting_stage(0)
+            self.set_waiting_user(0)
+            self.cc_job = None
+            return await ctx.send(':white_check_mark:')
 
         await ctx.channel.send(
             "You will get an @ on {.date} saying: {.desc}"
@@ -138,8 +192,8 @@ class Remind(commands.Cog):
     def add_job(self, job):
         # todo save job to file
         jobid = str(uuid.uuid4())
-        self.scheduler.add_job(func=self.remind, trigger='date', next_run_time=job.date, args=[
-                               job.user, job.desc, job.ctx, jobid])
+        self.scheduler.add_job(func=self.remind, trigger='date', next_run_time=job.date,
+                               id=jobid, args=[job.user, job.desc, job.ctx, jobid])
         with open("jobs.json") as f:
             jobs = json.loads(f.read())
         f.close()
@@ -179,6 +233,8 @@ class Remind(commands.Cog):
         await ctx.channel.send(
             "Enter a time in the format `{}`".format(self.frmt))
         m = await self.bot.wait_for('message', check=check)
+        if m.content == "cancel":
+            return "cancel"
         return self.validate_pattern(m)
 
     def validate_time(self, t, frmt):
