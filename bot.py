@@ -6,7 +6,7 @@ from datetime import datetime
 
 with open("config.json") as f:
     config = json.loads(f.read())
-bot = commands.Bot(command_prefix="!")
+bot = commands.Bot(command_prefix=",", description=",help")
 cogs = ['cogs.remind']
 
 
