@@ -6,7 +6,7 @@ from datetime import datetime
 
 with open("config.json") as f:
     config = json.loads(f.read())
-bot = commands.Bot(command_prefix=",", status=",help")
+bot = commands.Bot(command_prefix=",")
 cogs = ['cogs.remind']
 
 
@@ -19,6 +19,7 @@ async def on_ready():
     print('------')
     for cog in cogs:
         bot.load_extension(cog)
+    await bot.change_presence(status=discord.Status.online, activity=discord.Game(name=",help"))
 
 
 @bot.command()
